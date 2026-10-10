@@ -1023,13 +1023,14 @@
             <!-- CREATE PROJECT -->
             <div id="createProject" class="page">
                 <div class="page-header">
-                    <h1>➕ Create New Project</h1>
-                    <p>Start a new manufacturing project</p>
+                    <h1>➕ Create New Project with Materials & Costs</h1>
+                    <p>Complete setup in one go</p>
                 </div>
 
                 <div class="form-container">
+                    <!-- PROJECT BASIC INFO -->
                     <div class="form-section">
-                        <div class="form-section-title">Project Information</div>
+                        <div class="form-section-title"><i class="fas fa-info-circle"></i> Project Information</div>
                         <div class="form-group">
                             <label>Project Name</label>
                             <input type="text" id="newProjectName" placeholder="e.g., Chemical Compound X - Batch 1">
@@ -1062,9 +1063,70 @@
                         </div>
                     </div>
 
+                    <!-- ADD MATERIALS -->
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-flask-vial"></i> Add Raw Materials</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Select Material from Library</label>
+                                <select id="createMatName">
+                                    <option value="">-- Select Material --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Composition %</label>
+                                <input type="number" id="createMatComp" placeholder="e.g., 57">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Wastage %</label>
+                                <input type="number" id="createMatWaste" placeholder="e.g., 2">
+                            </div>
+                            <div class="form-group">
+                                <label>Logistics/Tonne (₹)</label>
+                                <input type="number" id="createMatLogistics" placeholder="e.g., 280">
+                            </div>
+                        </div>
+                        <button class="btn-success" onclick="addMaterialToCreateForm()">
+                            <i class="fas fa-plus"></i> Add Material
+                        </button>
+
+                        <!-- Materials List -->
+                        <div id="createProjectMaterialsList" style="margin-top: 20px;"></div>
+                    </div>
+
+                    <!-- ADD PLANT COSTS -->
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-industry"></i> Add Plant Costs</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Category</label>
+                                <select id="createPlantCategory">
+                                    <option value="Production">Production</option>
+                                    <option value="Quality Control">Quality Control</option>
+                                    <option value="Packaging">Packaging</option>
+                                    <option value="Miscellaneous">Miscellaneous</option>
+                                    <option value="Finished Product Logistics">Finished Product Logistics</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Cost/Tonne (₹)</label>
+                                <input type="number" id="createPlantCost" placeholder="e.g., 3600">
+                            </div>
+                        </div>
+                        <button class="btn-success" onclick="addPlantCostToCreateForm()">
+                            <i class="fas fa-plus"></i> Add Cost Category
+                        </button>
+
+                        <!-- Plant Costs List -->
+                        <div id="createProjectCostsList" style="margin-top: 20px;"></div>
+                    </div>
+
+                    <!-- ACTIONS -->
                     <div class="form-actions">
                         <button class="btn-secondary" onclick="showPage('engineerDashboard')">Cancel</button>
-                        <button class="btn-primary" onclick="createProject()">
+                        <button class="btn-primary" onclick="createProjectWithMaterials()">
                             <i class="fas fa-check"></i> Create Project
                         </button>
                     </div>
@@ -1503,6 +1565,12 @@
                 loadEngineerDashboard();
             } else if (pageName === 'engineerProjects') {
                 loadEngineerProjects();
+            } else if (pageName === 'createProject') {
+                tempProjectMaterials = [];
+                tempProjectPlantCosts = [];
+                document.getElementById('createProjectMaterialsList').innerHTML = '';
+                document.getElementById('createProjectCostsList').innerHTML = '';
+                populateCreateMaterialDropdown();
             } else if (pageName === 'materialsLibrary') {
                 loadEngineerMaterials();
             } else if (pageName === 'adminDashboard') {
@@ -1581,7 +1649,145 @@
             document.getElementById('engineerRecentProjects').innerHTML = html;
         }
 
-        function createProject() {
+        // Temporary storage for materials and costs during project creation
+        let tempProjectMaterials = [];
+        let tempProjectPlantCosts = [];
+
+        // Populate material dropdown when Create Project page is shown
+        function populateCreateMaterialDropdown() {
+            setTimeout(() => {
+                const select = document.getElementById('createMatName');
+                if (select) {
+                    const materials = Object.values(appState.rawMaterials).filter(m => m.engineerId === appState.currentUser.id);
+                    select.innerHTML = '<option value="">-- Select Material --</option>';
+                    materials.forEach(mat => {
+                        const option = document.createElement('option');
+                        option.value = mat.id;
+                        option.textContent = `${mat.name} (₹${mat.pricePerKg}/kg)`;
+                        select.appendChild(option);
+                    });
+                }
+            }, 100);
+        }
+
+        // Add material to temporary list
+        function addMaterialToCreateForm() {
+            const matId = document.getElementById('createMatName').value;
+            const composition = parseFloat(document.getElementById('createMatComp').value);
+            const wastage = parseFloat(document.getElementById('createMatWaste').value);
+            const logistics = parseFloat(document.getElementById('createMatLogistics').value);
+
+            if (!matId || isNaN(composition) || isNaN(wastage) || isNaN(logistics)) {
+                alert('Please fill all fields');
+                return;
+            }
+
+            const libraryMat = appState.rawMaterials[matId];
+            if (!libraryMat) {
+                alert('Material not found');
+                return;
+            }
+
+            // Check if material already added
+            if (tempProjectMaterials.find(m => m.id === matId)) {
+                alert('This material is already added');
+                return;
+            }
+
+            tempProjectMaterials.push({
+                id: matId,
+                name: libraryMat.name,
+                composition,
+                wastage,
+                pricePerKg: libraryMat.pricePerKg,
+                logisticsCostPerTonne: logistics
+            });
+
+            // Clear form
+            document.getElementById('createMatName').value = '';
+            document.getElementById('createMatComp').value = '';
+            document.getElementById('createMatWaste').value = '';
+            document.getElementById('createMatLogistics').value = '';
+
+            displayCreateMaterialsList();
+        }
+
+        // Display materials in create form
+        function displayCreateMaterialsList() {
+            let html = '';
+            if (tempProjectMaterials.length > 0) {
+                html = '<div class="table-container" style="margin: 0;"><table style="margin: 0;"><thead><tr><th>Material</th><th>Composition %</th><th>Wastage %</th><th>Logistics/t</th><th>Action</th></tr></thead><tbody>';
+                tempProjectMaterials.forEach((mat, idx) => {
+                    html += `
+                        <tr>
+                            <td>${mat.name}</td>
+                            <td>${mat.composition}%</td>
+                            <td>${mat.wastage}%</td>
+                            <td>₹${mat.logisticsCostPerTonne}</td>
+                            <td><button class="btn-danger" onclick="removeCreateMaterial(${idx})"><i class="fas fa-trash"></i></button></td>
+                        </tr>
+                    `;
+                });
+                html += '</tbody></table></div>';
+            }
+            document.getElementById('createProjectMaterialsList').innerHTML = html;
+        }
+
+        function removeCreateMaterial(index) {
+            tempProjectMaterials.splice(index, 1);
+            displayCreateMaterialsList();
+        }
+
+        // Add plant cost to temporary list
+        function addPlantCostToCreateForm() {
+            const category = document.getElementById('createPlantCategory').value;
+            const costPerTonne = parseFloat(document.getElementById('createPlantCost').value);
+
+            if (!costPerTonne) {
+                alert('Please enter cost');
+                return;
+            }
+
+            // Replace if category already exists
+            tempProjectPlantCosts = tempProjectPlantCosts.filter(p => p.category !== category);
+            tempProjectPlantCosts.push({
+                id: Date.now().toString(),
+                category,
+                costPerTonne
+            });
+
+            document.getElementById('createPlantCategory').value = 'Production';
+            document.getElementById('createPlantCost').value = '';
+
+            displayCreateCostsList();
+        }
+
+        // Display plant costs in create form
+        function displayCreateCostsList() {
+            let html = '';
+            if (tempProjectPlantCosts.length > 0) {
+                html = '<div class="table-container" style="margin: 0;"><table style="margin: 0;"><thead><tr><th>Category</th><th>Cost/Tonne (₹)</th><th>Action</th></tr></thead><tbody>';
+                tempProjectPlantCosts.forEach((cost, idx) => {
+                    html += `
+                        <tr>
+                            <td>${cost.category}</td>
+                            <td>₹${cost.costPerTonne}</td>
+                            <td><button class="btn-danger" onclick="removeCreateCost(${idx})"><i class="fas fa-trash"></i></button></td>
+                        </tr>
+                    `;
+                });
+                html += '</tbody></table></div>';
+            }
+            document.getElementById('createProjectCostsList').innerHTML = html;
+        }
+
+        function removeCreateCost(index) {
+            tempProjectPlantCosts.splice(index, 1);
+            displayCreateCostsList();
+        }
+
+        // Create project with materials and costs
+        function createProjectWithMaterials() {
             const name = document.getElementById('newProjectName').value;
             const volume = parseFloat(document.getElementById('newTargetVolume').value);
             const startDate = document.getElementById('newStartDate').value;
@@ -1589,7 +1795,17 @@
             const currency = document.getElementById('newCurrency').value;
 
             if (!name || !volume || !startDate || !endDate) {
-                alert('Please fill all fields');
+                alert('Please fill project information');
+                return;
+            }
+
+            if (tempProjectMaterials.length === 0) {
+                alert('Please add at least one material');
+                return;
+            }
+
+            if (tempProjectPlantCosts.length === 0) {
+                alert('Please add at least one plant cost category');
                 return;
             }
 
@@ -1604,19 +1820,32 @@
                 startDate,
                 endDate,
                 createdDate: new Date().toLocaleDateString(),
-                materials: [],
-                plantCosts: []
+                materials: [...tempProjectMaterials],
+                plantCosts: [...tempProjectPlantCosts]
             };
 
             saveState();
-            alert('Project created successfully!');
+
+            // Clear temporary storage
+            tempProjectMaterials = [];
+            tempProjectPlantCosts = [];
+
+            alert('✅ Project created successfully with materials and costs!');
             showPage('engineerProjects');
             loadEngineerProjects();
 
+            // Clear form
             document.getElementById('newProjectName').value = '';
             document.getElementById('newTargetVolume').value = '';
             document.getElementById('newStartDate').value = '';
             document.getElementById('newEndDate').value = '';
+            document.getElementById('createProjectMaterialsList').innerHTML = '';
+            document.getElementById('createProjectCostsList').innerHTML = '';
+        }
+
+        // Old function - kept for backward compatibility
+        function createProject() {
+            createProjectWithMaterials();
         }
 
         function updateMaterialPrice() {
